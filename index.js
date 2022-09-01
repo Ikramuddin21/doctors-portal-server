@@ -1,8 +1,9 @@
 const express = require('express');
 const cors = require('cors');
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config()
 const admin = require("firebase-admin");
+const fileUpload = require("express-fileupload");
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -17,6 +18,7 @@ admin.initializeApp({
 // middleware
 app.use(cors());
 app.use(express.json());
+app.use(fileUpload());
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.ilfiw.mongodb.net/?retryWrites=true&w=majority`;
 const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true, serverApi: ServerApiVersion.v1 });
@@ -41,6 +43,7 @@ async function run() {
         const database = client.db('doctors_portal');
         const appointmentsCollection = database.collection('appointments');
         const usersCollection = database.collection("users");
+        const doctorsCollection = database.collection("doctors");
 
         app.get('/appointments', verifyToken, async (req, res) => {
             const email = req.query.email;
@@ -51,11 +54,40 @@ async function run() {
             res.json(result);
         })
 
+        app.get('/appointments/:id', async (req, res) => {
+            const id = req.params.id;
+            const query = {_id: ObjectId(id)};
+            const result = await appointmentsCollection.findOne(query);
+            res.json(result);
+        })
+
         app.post('/appointments', async (req, res) => {
             const appointment = req.body;
             const result = await appointmentsCollection.insertOne(appointment);
             res.json(result);
         });
+
+        app.get('/doctors', async (req, res) => {
+            const cursor = doctorsCollection.find({});
+            const result = await cursor.toArray();
+            res.json(result);
+        })
+
+        app.post('/doctors', async (req, res) => {
+            const name = req.body.name;
+            const email = req.body.email;
+            const pic = req.files.image;
+            const picData = pic.data;
+            const encodePic = picData.toString('base64');
+            const imageBuffer = Buffer.from(encodePic, 'base64');
+            const doctor = {
+                name,
+                email,
+                image: imageBuffer
+            }
+            const result = await doctorsCollection.insertOne(doctor);
+            res.json(result);
+        })
 
         app.post('/users', async (req, res) => {
             const user = req.body;
